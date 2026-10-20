@@ -22,7 +22,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mapping, which stops working in 2027.9.
 
 ### Changed
-- `categories` in the manifest: Computers & network → Monitoring.
 - README: the pairing code is twelve characters, and where to answer a request.
 
 ### Security

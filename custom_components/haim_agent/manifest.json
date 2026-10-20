@@ -7,9 +7,6 @@
     "network",
     "system_log"
   ],
-  "categories": [
-    "computers_network.monitoring"
-  ],
   "codeowners": [
     "@nicscap"
   ],
