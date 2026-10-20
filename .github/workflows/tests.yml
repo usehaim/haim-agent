@@ -25,7 +25,7 @@ jobs:
             phcc: "0.13.367"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v5
         with:
