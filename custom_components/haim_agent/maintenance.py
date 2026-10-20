@@ -142,6 +142,25 @@ class MaintenanceUser:
         except Exception as error:  # noqa: BLE001
             raise MaintenanceUserError(f"Could not revive the maintenance account: {error}") from error
 
+        return await self._async_mint(user, minutes)
+
+    async def async_mint(self, minutes: int) -> str:
+        """Another key for an account that is ALREADY awake, for the time left (D51).
+
+        A way back in during a window: after a logout in Home Assistant, which
+        revoked the key that browser had, or after a restart, which lost the one
+        in memory. Never wakes the account - an asleep one means the window is
+        closed, and this refuses. The keys already handed out stay valid: the
+        installer's other tab is not logged out by coming back in.
+        """
+        user = await self.async_find()
+
+        if user is None or not user.is_active:
+            raise MaintenanceUserError("The maintenance account is asleep: no window is open.")
+
+        return await self._async_mint(user, minutes)
+
+    async def _async_mint(self, user: Any, minutes: int) -> str:
         try:
             refresh_token = await self._hass.auth.async_create_refresh_token(
                 user,

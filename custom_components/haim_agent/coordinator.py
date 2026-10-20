@@ -159,6 +159,15 @@ class HaimCoordinator:
     def consent(self) -> Any:
         return getattr(self, "_consent", None)
 
+    def attach_remote(self, remote: Any) -> None:
+        """The open window, so the household can see it and until when (D51)."""
+        self._remote = remote
+        remote.async_add_listener(self._notify)
+
+    @property
+    def remote(self) -> Any:
+        return getattr(self, "_remote", None)
+
     async def async_start(self) -> None:
         """Send once now, then settle into the interval at our own offset."""
         await self._queue.async_load()

@@ -1,7 +1,7 @@
-"""The two entities a household actually looks at.
+"""The entities a household actually looks at.
 
-One answers "is this thing talking to somebody right now". The other answers
-"is somebody asking to come in". Both exist so that the questions can be
+One answers "is this thing talking to somebody right now". One answers "is
+somebody asking to come in", and one "is somebody in". Both exist so that the questions can be
 answered from inside their own Home Assistant, in an automation or on a
 dashboard, without taking anybody's word for it - including ours.
 """
@@ -27,6 +27,7 @@ async def async_setup_entry(
     async_add_entities([
         HaimConnectionSensor(entry.runtime_data),
         HaimAccessRequestSensor(entry.runtime_data),
+        HaimMaintenanceAccessSensor(entry.runtime_data),
     ])
 
 
@@ -59,3 +60,21 @@ class HaimAccessRequestSensor(HaimEntity, BinarySensorEntity):
         consent = self._coordinator.consent
 
         return bool(consent is not None and consent.has_pending)
+
+
+class HaimMaintenanceAccessSensor(HaimEntity, BinarySensorEntity):
+    """On while a window is open: somebody may be inside, as an administrator.
+
+    Read-only, like the rest. The way to end it is the repair issue, the portal
+    or the panel - an entity another integration could switch off would be a
+    way to close, or keep open, a window nobody in the house decided on.
+    """
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "maintenance_access")
+
+    @property
+    def is_on(self) -> bool:
+        remote = self._coordinator.remote
+
+        return bool(remote is not None and remote.is_open)

@@ -202,6 +202,10 @@ class HaimApi:
         """
         return await self._request("POST", f"/access-requests/{request_uuid}/decision", json=payload)
 
+    async def session_status(self, session_uuid: str) -> ApiResponse:
+        """Is the window this house holds still open, and until when (1.5.0)."""
+        return await self._request("GET", f"/sessions/{session_uuid}")
+
     async def _request(
         self,
         method: str,

@@ -314,7 +314,7 @@ async def test_the_door_is_still_served_without_a_home_assistant_token(
     token = await MaintenanceUser(hass).async_wake(30)
 
     class Door:
-        def redeem(self, ticket: str) -> dict[str, Any] | None:
+        async def async_redeem(self, ticket: str) -> dict[str, Any] | None:
             return {"token": token, "expires_at_ms": 4_102_444_800_000} if ticket == "good" else None
 
     hass.http.register_view(HaimOpenView(Door()))

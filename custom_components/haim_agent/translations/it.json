@@ -80,6 +80,9 @@
       },
       "access_request": {
         "name": "Richiesta di accesso in corso"
+      },
+      "maintenance_access": {
+        "name": "Accesso di manutenzione attivo"
       }
     },
     "sensor": {
@@ -94,6 +97,9 @@
           "paused": "In pausa",
           "revoked": "Scollegato"
         }
+      },
+      "maintenance_access_ends": {
+        "name": "Accesso di manutenzione fino alle"
       }
     }
   },

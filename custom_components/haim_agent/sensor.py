@@ -25,7 +25,11 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data
 
-    async_add_entities([HaimLastHeartbeatSensor(coordinator), HaimStatusSensor(coordinator)])
+    async_add_entities([
+        HaimLastHeartbeatSensor(coordinator),
+        HaimStatusSensor(coordinator),
+        HaimAccessEndsSensor(coordinator),
+    ])
 
 
 class HaimLastHeartbeatSensor(HaimEntity, SensorEntity):
@@ -55,3 +59,22 @@ class HaimStatusSensor(HaimEntity, SensorEntity):
             return "paused"
 
         return "connected" if self._coordinator.connected else "retrying"
+
+
+class HaimAccessEndsSensor(HaimEntity, SensorEntity):
+    """When the open window closes; unknown when none is (D51).
+
+    Informative only. The house closes the window at this time whatever this
+    entity says, and the panel may only ever bring it forward.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "maintenance_access_ends")
+
+    @property
+    def native_value(self) -> datetime | None:
+        remote = self._coordinator.remote
+
+        return remote.expires_at if remote is not None else None

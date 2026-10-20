@@ -24,11 +24,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_track_point_in_utc_time
+from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_time_interval
 from homeassistant.helpers.storage import Store
 
-from .const import MAX_WINDOW_MINUTES, STORAGE_KEY_SESSION, STORAGE_VERSION
-from .maintenance import MaintenanceUser
+from .const import MAX_WINDOW_MINUTES, SESSION_SYNC_SECONDS, STORAGE_KEY_SESSION, STORAGE_VERSION
+from .maintenance import MaintenanceUser, MaintenanceUserError
 from .web import fingerprint, ticket_matches
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,11 +47,14 @@ class RemoteAccessManager:
         )
         self._session: dict[str, Any] | None = None
         self._cancel_timer = None
+        self._cancel_sync = None
+        self._listeners: list[Any] = []
 
-        # The window's key, and the one-time ticket that opens the door to it.
-        # Both live in memory and only while the window is open: on disk there
-        # is the deadline and nothing else, so a copy of the storage file is not
-        # a copy of the key (D27, D29).
+        # The key handed to the cloud lives in memory only, and only while the
+        # window is open (D27). The sha256 of the ticket goes to disk with the
+        # deadline (D51): it opens nothing by itself - the ticket does, and the
+        # ticket never reaches this house except in the installer's POST - and
+        # without it a restart meant asking the household all over again.
         self._token: str | None = None
         self._ticket_hash: str | None = None
 
@@ -64,6 +67,28 @@ class RemoteAccessManager:
     @property
     def is_open(self) -> bool:
         return self._session is not None
+
+    @property
+    def expires_at(self) -> datetime | None:
+        """When the open window closes; None when none is. For the entities."""
+        return _parse(self._session.get("expires_at")) if self._session else None
+
+    def async_add_listener(self, listener) -> Any:
+        """Called whenever a window opens, closes or gets a new deadline."""
+        self._listeners.append(listener)
+
+        def remove() -> None:
+            if listener in self._listeners:
+                self._listeners.remove(listener)
+
+        return remove
+
+    def _changed(self) -> None:
+        for listener in list(self._listeners):
+            try:
+                listener()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("A window listener failed", exc_info=True)
 
     # ------------------------------------------------------------------ opening
 
@@ -140,6 +165,7 @@ class RemoteAccessManager:
                 "slug": data.get("slug"),
                 "relay_url": relay,
                 "expires_at": expires_at.isoformat(),
+                "ticket_hash": self._ticket_hash,
             }
 
             # Disk, then the timer, then - and only then - the cloud. A crash
@@ -171,6 +197,8 @@ class RemoteAccessManager:
             await self.async_close("failed_to_open")
 
             raise
+
+        self._changed()
 
         _LOGGER.info(
             "HAIM window open until %s, ticket %s, and the key expires with it",
@@ -204,28 +232,27 @@ class RemoteAccessManager:
 
         _LOGGER.info("HAIM window closed (%s): the account is parked and every key it had is gone", reason)
 
+        self._changed()
+
         return {"closed": True, "reason": reason}
 
     # ------------------------------------------------------------------ the door
 
-    def redeem(self, ticket: str) -> dict[str, Any] | None:
-        """Spend the ticket and hand over the key. Once, and only inside a window.
+    async def async_redeem(self, ticket: str) -> dict[str, Any] | None:
+        """Check the ticket and hand over a key - a fresh one, every time (D51).
 
         Returns None for every failure, and the caller answers 404 to all of
-        them: no window, no ticket issued, wrong ticket, already spent. Telling
+        them: no window, no ticket issued, wrong ticket, window over. Telling
         them apart is how somebody works out which of the four they are hitting.
+
+        A fresh key and not the one minted at opening: that one dies with a
+        logout in Home Assistant, and with a restart, which keeps it nowhere.
+        Either used to lock the installer out of a window the household had
+        granted. Every key is minted for the time left and revoked with the
+        account when the window closes.
         """
         if self._session is None:
             _LOGGER.debug("HAIM door: no window is open in this house")
-
-            return None
-
-        if self._token is None:
-            # Survived a restart: the deadline came back from disk, the key did
-            # not, because it only ever lived in memory. Reopening needs a new
-            # window, and saying so here is the difference between a five minute
-            # answer and an evening.
-            _LOGGER.debug("HAIM door: a window is open but the key did not survive the restart")
 
             return None
 
@@ -250,6 +277,23 @@ class RemoteAccessManager:
 
             return None
 
+        session_uuid = self._session.get("session_uuid")
+        left = max(1, int((expires_at - _now()).total_seconds() // 60) + 1)
+
+        try:
+            token = await self._user.async_mint(left)
+        except MaintenanceUserError:
+            _LOGGER.debug("HAIM door: the maintenance account is asleep", exc_info=True)
+
+            return None
+
+        if self._session is None or self._session.get("session_uuid") != session_uuid:
+            # The window closed while the key was being minted. Parked again,
+            # so the key that just came into being goes with it.
+            await self._user.async_park()
+
+            return None
+
         # Deliberately NOT spent. One-time was protecting against the leak of
         # something that never leaves the installer's browser - it travels in a
         # POST body, never in a URL - and that dies with the window anyway.
@@ -262,7 +306,7 @@ class RemoteAccessManager:
         # So the ticket lives exactly as long as the window does, and not a
         # second more: the check below is what ends it.
         return {
-            "token": self._token,
+            "token": token,
             "expires_at_ms": int(expires_at.timestamp() * 1000),
         }
 
@@ -293,10 +337,10 @@ class RemoteAccessManager:
 
             return
 
-        # Restored: the deadline survived, the key did not. It lived in memory
-        # on purpose. So the window is still counted down and still closes on
-        # time, but nobody can walk through it any more - which is the safe half
-        # to keep. The installer asks again, and the household says yes again.
+        # Restored: the deadline and the ticket's hash survived, the key handed
+        # to the cloud did not. The installer comes back in through the door,
+        # which mints a new key (D51); and the first thing done is to ask the
+        # panel whether the window is still open at all.
         #
         # And never further away than six hours from now: a deadline on disk
         # that says otherwise was not written by this version, or the clock of
@@ -304,7 +348,12 @@ class RemoteAccessManager:
         expires_at = min(expires_at, _now() + timedelta(minutes=MAX_WINDOW_MINUTES))
 
         self._session = {**stored, "expires_at": expires_at.isoformat()}
+        ticket_hash = stored.get("ticket_hash")
+        self._ticket_hash = ticket_hash if isinstance(ticket_hash, str) else None
         self._arm(expires_at)
+        self._changed()
+
+        await self.async_sync()
 
     # ------------------------------------------------------------------ timer
 
@@ -314,12 +363,83 @@ class RemoteAccessManager:
         async def fire(_now_) -> None:
             await self.async_close("expired")
 
+        async def sync(_now_) -> None:
+            await self.async_sync()
+
         self._cancel_timer = async_track_point_in_utc_time(self._hass, fire, expires_at)
+        self._cancel_sync = async_track_time_interval(self._hass, sync, timedelta(seconds=SESSION_SYNC_SECONDS))
 
     def _disarm(self) -> None:
         if self._cancel_timer is not None:
             self._cancel_timer()
             self._cancel_timer = None
+
+        if self._cancel_sync is not None:
+            self._cancel_sync()
+            self._cancel_sync = None
+
+    # ------------------------------------------------------------------ the panel
+
+    async def async_sync(self) -> None:
+        """Ask the panel whether the window is still open (D51, contract 1.5.0).
+
+        The panel is where that is decided. Closed there: closed here, now.
+        Open: its deadline may make ours SHORTER, never longer. No answer, or
+        one this house does not understand: the deadline on disk stands, and
+        the timer closes the window at it all the same. Never fail-open.
+        """
+        session = self._session
+
+        if session is None or self._api is None or not hasattr(self._api, "session_status"):
+            return
+
+        session_uuid = session.get("session_uuid")
+
+        try:
+            response = await self._api.session_status(str(session_uuid))
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Could not ask the panel about the window; the deadline here stands", exc_info=True)
+
+            return
+
+        if self._session is None or self._session.get("session_uuid") != session_uuid:
+            return
+
+        data = getattr(response, "data", None)
+
+        if getattr(response, "status", None) != 200 or not isinstance(data, dict):
+            return
+
+        if data.get("status") == "closed":
+            reason = data.get("close_reason")
+
+            await self.async_close(reason if isinstance(reason, str) and reason.isidentifier() else "closed_by_panel")
+
+            return
+
+        if data.get("status") != "open":
+            return
+
+        theirs = _parse(data.get("expires_at"))
+        ours = _parse(self._session.get("expires_at"))
+
+        if theirs is None or ours is None or theirs >= ours:
+            return
+
+        if theirs <= _now():
+            await self.async_close("expired")
+
+            return
+
+        self._session = {**self._session, "expires_at": theirs.isoformat()}
+
+        try:
+            await self._store.async_save(self._session)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Could not write the shorter deadline to disk", exc_info=True)
+
+        self._arm(theirs)
+        self._changed()
 
     def _relay_is_ours(self, relay: str) -> bool:
         """The host we were enrolled with, or a subdomain of it, over https.

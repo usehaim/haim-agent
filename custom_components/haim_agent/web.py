@@ -84,7 +84,7 @@ class HaimOpenView(HomeAssistantView):
         if not isinstance(ticket, str) or not ticket:
             return self._refuse("no ticket in the request")
 
-        session = self._remote.redeem(ticket)
+        session = await self._remote.async_redeem(ticket)
 
         if session is None:
             # The reason is in the log of THIS house and nowhere else, at debug

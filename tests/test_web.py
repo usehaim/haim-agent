@@ -34,7 +34,7 @@ class FakeRemote:
         self._hash = ticket_hash(ticket) if ticket else None
         self._minutes = minutes
 
-    def redeem(self, ticket: str):
+    async def async_redeem(self, ticket: str):
         if self._hash is None:
             return None
 
@@ -226,5 +226,5 @@ async def test_the_house_side_of_a_refusal_is_not_a_warning_either(caplog) -> No
     remote._token = None
     remote._ticket_hash = None
 
-    assert remote.redeem("qualunque") is None
+    assert await remote.async_redeem("qualunque") is None
     assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []

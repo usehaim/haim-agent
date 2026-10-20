@@ -80,6 +80,9 @@
       },
       "access_request": {
         "name": "Access request pending"
+      },
+      "maintenance_access": {
+        "name": "Maintenance access active"
       }
     },
     "sensor": {
@@ -94,6 +97,9 @@
           "paused": "Paused",
           "revoked": "Cut off"
         }
+      },
+      "maintenance_access_ends": {
+        "name": "Maintenance access ends"
       }
     }
   },

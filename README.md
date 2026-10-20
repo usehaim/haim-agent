@@ -39,7 +39,12 @@ address built into it, which is why it always asks.
 When your installer asks to connect, the question appears in **Settings →
 Repairs** (and, if the companion app is installed, as a notification on your
 phone). Open it and choose yes or no. Nothing happens until you answer, and a
-yes lasts only for the time you allowed.
+yes lasts only for the time you allowed, counted from your yes.
+
+While it lasts, **Maintenance access active** is on and **Maintenance access
+ends** shows when it closes. Your installer can leave and come back as often as
+they need in that time; at the end the maintenance account is switched off and
+every key it had is revoked, even if Home Assistant was off at that moment.
 
 ## Security
 

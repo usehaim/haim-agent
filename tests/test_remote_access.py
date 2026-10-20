@@ -159,6 +159,10 @@ def _fake_storage(monkeypatch):
         return cancel
 
     monkeypatch.setattr("custom_components.haim_agent.remote_access.async_track_point_in_utc_time", track)
+    monkeypatch.setattr(
+        "custom_components.haim_agent.remote_access.async_track_time_interval",
+        lambda hass, action, interval: (lambda: None),
+    )
 
     return fired
 
@@ -402,19 +406,19 @@ async def test_the_ticket_opens_the_door_once_and_only_inside_a_window() -> None
 
     remote, hass, api = manager()
 
-    assert remote.redeem("qualunque") is None, "chiuso: nessuna finestra aperta"
+    assert await remote.async_redeem("qualunque") is None, "chiuso: nessuna finestra aperta"
 
     await remote.async_open(window(ticket_hash=ticket_hash("un-ticket-vero")))
 
-    assert remote.redeem("sbagliato") is None
+    assert await remote.async_redeem("sbagliato") is None
 
-    spent = remote.redeem("un-ticket-vero")
+    spent = await remote.async_redeem("un-ticket-vero")
     assert spent is not None
     assert spent["token"] == "eyJ-un-token-di-prova"
 
     # And again, for as long as the window lasts: reopening a tab you closed by
     # accident must not mean asking the household for permission a second time.
-    assert remote.redeem("un-ticket-vero") is not None
+    assert await remote.async_redeem("un-ticket-vero") is not None
 
 
 async def test_closing_the_window_takes_the_key_out_of_memory() -> None:
@@ -425,18 +429,14 @@ async def test_closing_the_window_takes_the_key_out_of_memory() -> None:
 
     await remote.async_close("revoked_by_owner")
 
-    assert remote.redeem("un-ticket-vero") is None
+    assert await remote.async_redeem("un-ticket-vero") is None
     assert hass.auth.user.is_active is False
 
 
-async def test_a_restart_keeps_the_deadline_and_loses_the_key() -> None:
-    """The safe half is the one that survives.
-
-    The deadline is on disk, so the window still closes on time even if Home
-    Assistant restarted in the middle. The key was in memory on purpose, so
-    nobody can walk through the window any more - the installer asks again and
-    the household says yes again.
-    """
+async def test_a_restart_mid_window_keeps_the_account_awake_and_lets_the_installer_back_in() -> None:
+    """D51. The deadline and the ticket's hash are on disk, the key handed to
+    the cloud is not. After the restart the account is still awake, the window
+    still closes on time, and the door mints a new key - no new request."""
     from custom_components.haim_agent.web import ticket_hash
 
     remote, hass, api = manager()
@@ -446,7 +446,11 @@ async def test_a_restart_keeps_the_deadline_and_loses_the_key() -> None:
     await revived.async_restore()
 
     assert revived.is_open is True
-    assert revived.redeem("un-ticket-vero") is None
+    assert hass.auth.user.is_active is True
+    assert await revived.async_redeem("un-ticket-vero") is not None
+    assert await revived.async_redeem("sbagliato") is None
+    # On disk: the deadline and the ticket's hash. No key.
+    assert set(FakeStore.files[SESSION_KEY]) == {"session_uuid", "slug", "relay_url", "expires_at", "ticket_hash"}
 
 
 # ------------------------------------------------------- D37, point 1: unload
@@ -469,7 +473,7 @@ async def test_disabling_the_integration_mid_window_parks_the_account(_fake_stor
     assert hass.auth.keys() == []
     assert _fake_storage == [], "no timer left behind to fire on a manager nobody holds"
     assert SESSION_KEY not in FakeStore.files
-    assert remote.redeem("qualunque") is None
+    assert await remote.async_redeem("qualunque") is None
 
 
 async def test_parking_revokes_every_key_even_if_deactivating_stops_doing_it() -> None:
@@ -592,7 +596,7 @@ async def test_a_new_window_after_a_restart_replaces_the_keyless_one() -> None:
 
     await revived.async_open(window(minutes=60, session_uuid="22222222-2222-4222-8222-222222222222"))
 
-    assert revived.redeem("qualunque") is None
+    assert await revived.async_redeem("qualunque") is None
     assert len(hass.auth.keys()) == 1
 
 
@@ -827,7 +831,7 @@ async def test_whatever_happens_at_the_deadline_the_account_is_off_and_has_no_ke
 
     assert hass.auth.awake() == [], f"{branch}: an account is awake after the deadline"
     assert hass.auth.keys() == [], f"{branch}: a key outlived the window"
-    assert remote.redeem("qualunque") is None
+    assert await remote.async_redeem("qualunque") is None
 
 
 async def test_home_assistant_is_told_to_close_the_window_on_unload() -> None:
@@ -979,3 +983,137 @@ def test_no_close_reason_is_shown_in_the_house() -> None:
 
         for reason in ("revoked_by_owner", "closed_by_user", "user_removed", "agent_lost"):
             assert reason not in text, f"{name} shows {reason}: translate user_removed too"
+
+
+# ------------------------------------------- D51: the panel decides, the house follows
+
+
+class PanelSays:
+    """The panel's answer to GET /sessions/{uuid}, or no answer at all."""
+
+    def __init__(self, data: dict | None = None, down: bool = False) -> None:
+        self.data = data
+        self.down = down
+        self.asked: list[str] = []
+
+    async def session_status(self, session_uuid: str):
+        self.asked.append(session_uuid)
+
+        if self.down:
+            raise HaimApiError("the panel is unreachable")
+
+        return SimpleNamespace(status=200, data=self.data)
+
+    async def deliver_credentials(self, payload: dict) -> None:
+        pass
+
+
+async def test_a_logout_in_home_assistant_does_not_lock_the_installer_out() -> None:
+    from custom_components.haim_agent.web import ticket_hash
+
+    remote, hass, api = manager()
+    await remote.async_open(window(minutes=60, ticket_hash=ticket_hash("un-ticket-vero")))
+
+    assert await remote.async_redeem("un-ticket-vero") is not None
+    before = set(hass.auth.keys())
+
+    # Logout from the Home Assistant frontend: that browser's key is revoked.
+    newest = sorted(before)[-1]
+    hass.auth.async_remove_refresh_token(hass.auth.user.refresh_tokens[newest])
+
+    again = await remote.async_redeem("un-ticket-vero")
+
+    assert again is not None
+    assert hass.auth.user.is_active is True
+    assert set(hass.auth.keys()) - before, "a new key, not the revoked one"
+
+
+async def test_a_way_in_never_wakes_a_parked_account() -> None:
+    from custom_components.haim_agent.web import ticket_hash
+
+    remote, hass, api = manager()
+    await remote.async_open(window(minutes=60, ticket_hash=ticket_hash("un-ticket-vero")))
+
+    # Somebody parked the account behind the window's back.
+    await hass.auth.async_deactivate_user(hass.auth.user)
+
+    assert await remote.async_redeem("un-ticket-vero") is None
+    assert hass.auth.user.is_active is False
+
+
+async def test_a_window_the_panel_closed_closes_here_and_cannot_be_reentered() -> None:
+    from custom_components.haim_agent.web import ticket_hash
+
+    panel = PanelSays({"status": "closed", "close_reason": "revoked_by_owner"})
+    remote, hass, _ = manager(api=panel)
+    await remote.async_open(window(minutes=60, ticket_hash=ticket_hash("un-ticket-vero")))
+
+    # The next sync, thirty seconds later at most.
+    await remote.async_sync()
+
+    assert remote.is_open is False
+    assert hass.auth.awake() == []
+    assert hass.auth.keys() == []
+    assert await remote.async_redeem("un-ticket-vero") is None
+    assert panel.asked == ["11111111-1111-4111-8111-111111111111"]
+
+
+async def test_the_panel_can_shorten_the_window_and_never_lengthen_it(_fake_storage) -> None:
+    remote, hass, _ = manager(api=PanelSays())
+    await remote.async_open(window(minutes=60))
+    ours = deadline_of(remote)
+
+    remote._api.data = {"status": "open", "expires_at": (ours + timedelta(hours=2)).isoformat()}
+    await remote.async_sync()
+    assert deadline_of(remote) == ours
+
+    shorter = ours - timedelta(minutes=20)
+    remote._api.data = {"status": "open", "expires_at": shorter.isoformat()}
+    await remote.async_sync()
+
+    assert deadline_of(remote) == shorter
+    assert datetime.fromisoformat(FakeStore.files[SESSION_KEY]["expires_at"]) == shorter
+    assert [when for _action, when in _fake_storage] == [shorter]
+
+
+async def test_an_unreachable_panel_still_closes_the_window_at_its_deadline(_fake_storage) -> None:
+    remote, hass, _ = manager(api=PanelSays(down=True))
+    await remote.async_open(window(minutes=60))
+
+    await remote.async_sync()
+    assert remote.is_open is True, "no answer is not a reason to close early"
+
+    # The deadline passes with the panel still down: the timer fires anyway.
+    for action, _when in list(_fake_storage):
+        await action(None)
+
+    assert remote.is_open is False
+    assert hass.auth.awake() == []
+    assert hass.auth.keys() == []
+
+
+async def test_a_restart_asks_the_panel_first_thing() -> None:
+    remote, hass, _ = manager(api=PanelSays({"status": "open"}))
+    await remote.async_open(window(minutes=60))
+
+    panel = PanelSays({"status": "closed", "close_reason": "closed_by_user"})
+    revived, _, _ = manager(hass=hass, api=panel)
+    await revived.async_restore()
+
+    assert panel.asked, "asked at start, not thirty seconds later"
+    assert revived.is_open is False
+    assert hass.auth.awake() == []
+
+
+async def test_entities_hear_about_every_change() -> None:
+    remote, hass, _ = manager(api=PanelSays({"status": "closed", "close_reason": None}))
+    heard: list[bool] = []
+    remote.async_add_listener(lambda: heard.append(remote.is_open))
+
+    await remote.async_open(window(minutes=60))
+    assert remote.expires_at == deadline_of(remote)
+
+    await remote.async_sync()
+
+    assert heard[0] is True and heard[-1] is False
+    assert remote.expires_at is None

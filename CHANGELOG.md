@@ -8,6 +8,30 @@ not a style preference.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-10-20
+
+### Added
+- Two entities: **Maintenance access active** (on while a window is open) and
+  **Maintenance access ends** (when it closes; unknown when none is).
+- While a window is open the component asks the panel every 30 seconds whether
+  it still is (`GET /sessions/{uuid}`, contract 1.5.0). Closed there closes it
+  here at once; the panel's deadline may shorten the window, never lengthen it.
+  If the panel cannot be reached the deadline on disk stands, and the window
+  closes at it all the same.
+
+### Changed
+- Coming back in during a window no longer needs a new request. The door mints
+  a new key for the time left on every valid entry, so a logout in Home
+  Assistant or a restart mid-window no longer locks the installer out. The
+  sha256 of the ticket is kept on disk with the deadline; no key ever is.
+- After a restart the component asks the panel about the open window first
+  thing.
+
+### Security
+- No security fixes in this release. The maintenance account is still parked
+  and every key revoked when the window closes, by the panel, the household,
+  the deadline or a restart that came back after it.
+
 ## [1.0.1] — 2026-10-20
 
 ### Fixed

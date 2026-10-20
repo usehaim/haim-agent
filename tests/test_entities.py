@@ -71,3 +71,23 @@ def test_the_entities_group_under_one_device() -> None:
     # A household that cannot find what a component added has no way to decide
     # how they feel about it.
     assert connection.device_info["identifiers"] == heartbeat.device_info["identifiers"]
+
+
+def test_the_maintenance_access_entities_follow_the_window() -> None:
+    """D51: on while a window is open, with the time it ends; off and unknown otherwise."""
+    from datetime import datetime, timezone
+
+    from custom_components.haim_agent.binary_sensor import HaimMaintenanceAccessSensor
+    from custom_components.haim_agent.sensor import HaimAccessEndsSensor
+
+    ends = datetime(2026, 10, 20, 16, 0, tzinfo=timezone.utc)
+    open_window = coordinator(remote=SimpleNamespace(is_open=True, expires_at=ends))
+    closed = coordinator(remote=SimpleNamespace(is_open=False, expires_at=None))
+
+    assert HaimMaintenanceAccessSensor(open_window).is_on is True
+    assert HaimAccessEndsSensor(open_window).native_value == ends
+    assert HaimMaintenanceAccessSensor(closed).is_on is False
+    assert HaimAccessEndsSensor(closed).native_value is None
+    # Before the window manager is attached: nothing open, nothing to show.
+    assert HaimMaintenanceAccessSensor(coordinator(remote=None)).is_on is False
+    assert HaimAccessEndsSensor(coordinator(remote=None)).native_value is None

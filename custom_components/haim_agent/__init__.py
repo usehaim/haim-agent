@@ -96,6 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaimConfigEntry) -> bool
     register_supported_commands(dispatcher, hass, coordinator, consent, remote)
     coordinator.attach_commands(dispatcher)
     coordinator.attach_consent(consent)
+    coordinator.attach_remote(remote)
 
     entry.runtime_data = coordinator
 

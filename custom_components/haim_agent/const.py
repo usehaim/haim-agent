@@ -131,6 +131,10 @@ CONF_PSEUDONYM_KEY: Final = "pseudonym_key"
 # is wrong - or compromised - cannot hand out a longer one (D37).
 MAX_WINDOW_MINUTES: Final = 360
 
+# While a window is open the house asks the panel whether it still is (D51,
+# contract 1.5.0). Not otherwise: a house with nothing open asks nothing.
+SESSION_SYNC_SECONDS: Final = 30
+
 # The one shape an agent key ever takes (panel: AgentKey::parse). A rotated key
 # in any other shape is not one the panel minted, and persisting it would lock
 # this house out the day the old key ends its overlap.
