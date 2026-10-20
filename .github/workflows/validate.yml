@@ -1,0 +1,30 @@
+name: Validate
+
+# HACS and hassfest, on every push and once a week. The weekly run is the point:
+# these two break because Home Assistant changed, not because we did, and a
+# check that only runs when we push finds that out on the day we are busy.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1"
+
+jobs:
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # No brand images yet: the icon goes to home-assistant/brands once the
+          # logo exists. Remove this line in that same commit.
+          ignore: brands

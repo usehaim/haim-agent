@@ -1,0 +1,100 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect this instance to HAIM",
+        "description": "Your installer gave you a twelve character code, in three groups of four. It is good for fifteen minutes and can be used once.",
+        "data": {
+          "pairing_code": "Pairing code",
+          "base_url": "Server address",
+          "locale": "Language",
+          "log_level": "How much of the error log to send"
+        },
+        "data_description": {
+          "base_url": "Your installer's HAIM address. If they run their own, it is not the default one.",
+          "log_level": "Counts only, counts and categories, or the full messages. Messages always pass through a filter that strips tokens, email addresses, IP addresses and network names before they leave this house."
+        }
+      }
+    },
+    "error": {
+      "pairing_rejected": "That code is not valid. It may have expired, or already been used. Ask your installer for a new one.",
+      "insecure_url": "The address must start with https://. This connection carries the key to your instance.",
+      "cannot_connect": "Could not reach that address. Check it and try again.",
+      "certificate_rejected": "The panel's certificate did not verify. The address is probably right and the certificate is not - the fix is on the server. This component has no option to skip the check."
+    },
+    "abort": {
+      "already_configured": "This instance is already connected to HAIM."
+    }
+  },
+  "issues": {
+    "token_revoked": {
+      "title": "HAIM can no longer reach your installer",
+      "description": "Your installer has revoked the key this instance used to report in. Nothing is being sent any more, and no alerts about this instance will reach them.\n\nThis is usually deliberate - a change of installer, or a key that had to be replaced. If it is not, ask them for a new pairing code and set the integration up again."
+    },
+    "site_inactive": {
+      "title": "HAIM monitoring is paused",
+      "description": "Your installer's HAIM account has archived this instance, or their subscription has lapsed. Nothing is being sent while that is true.\n\nThe component will check again every six hours on its own. If you were expecting to be monitored, this is worth a phone call."
+    },
+    "clock_skewed": {
+      "title": "This system's clock is wrong",
+      "description": "The date and time on this machine are impossible - earlier than this component was made, or more than a day away from the real time. It usually means the machine cannot reach a time server, which a Raspberry Pi without a battery-backed clock needs at every start.\n\nUntil it is fixed, HAIM uses the time of your installer's server for the events it sends. Other things on this system rely on the clock too - certificates, backups, automations that run at a given hour - so it is worth fixing: check the network and the time settings of the host."
+    },
+    "what_we_send": {
+      "title": "What HAIM sends out of this house",
+      "fix_flow": {
+        "abort": {
+          "issue_ignored": "Understood. You can read this again in the HAIM documentation at any time."
+        },
+        "step": {
+          "confirm": {
+            "title": "What HAIM sends out of this house",
+            "description": "This system is monitored by the installer who looks after it. So that you know exactly what that means, here is what leaves this house and what does not.\n\n**What is sent**\n\nHow many entities, devices, automations and dashboards exist. How many entities are currently unavailable. Which version of Home Assistant is installed and which updates are waiting. Whether the last backup worked. How busy the processor, the memory and the disk are. The names of the *types* of integration in use - `zha`, `mqtt` - and the names of installed add-ons.\n\nError log messages are sent at the level chosen when this was set up, which is currently **{log_level}**. Before any message leaves, it passes through a filter that removes access tokens, email addresses, IP addresses, network names and web addresses containing passwords.\n\n**What is never sent**\n\nThe names of your devices. The names of your rooms. What any device is doing, now or in the past. Your energy consumption. Camera images. Anything about the people who live here.\n\nNobody can see your system remotely unless you approve it, each time, and only for as long as you allow.\n\nThe code that does all this is public and can be read by anyone: github.com/usehaim/haim-agent"
+          }
+        }
+      }
+    },
+    "access_request": {
+      "title": "{installer} is asking to connect to your system",
+      "fix_flow": {
+        "abort": {
+          "no_longer_valid": "This request is no longer valid: it has already been answered, it has expired, or a newer one has taken its place. Nothing has been sent.",
+          "cannot_answer_now": "This request cannot be answered while someone is connected to your system. Nothing has been sent. Try again once the connection is closed."
+        },
+        "step": {
+          "decide": {
+            "title": "Someone is asking to connect",
+            "description": "**{installer}** is asking to connect to this system.\n\n**What they need to do:** {subject}\n\n**Why:** {reason}\n\n**They asked for:** {minutes} minutes\n\nNothing happens until you answer. You can give them less time than they asked for - not more, and neither can we. If you close this without answering, the request expires on its own and nobody gets in.",
+            "data": {
+              "decision": "Your answer",
+              "granted_minutes": "How long you are giving them"
+            }
+          }
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Connection"
+      },
+      "access_request": {
+        "name": "Access request pending"
+      }
+    },
+    "sensor": {
+      "last_heartbeat": {
+        "name": "Last report"
+      },
+      "agent_status": {
+        "name": "Status",
+        "state": {
+          "connected": "Reporting",
+          "retrying": "Trying again",
+          "paused": "Paused",
+          "revoked": "Cut off"
+        }
+      }
+    }
+  }
+}

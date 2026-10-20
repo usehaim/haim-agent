@@ -1,0 +1,15 @@
+{
+  "domain": "haim_agent",
+  "name": "HAIM",
+  "after_dependencies": ["backup", "hassio", "network", "system_log"],
+  "codeowners": ["@nicscap"],
+  "config_flow": true,
+  "dependencies": ["http"],
+  "documentation": "https://github.com/usehaim/haim-agent",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/usehaim/haim-agent/issues",
+  "quality_scale": "silver",
+  "requirements": [],
+  "version": "1.0.0"
+}

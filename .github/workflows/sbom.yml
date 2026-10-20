@@ -1,0 +1,36 @@
+name: SBOM
+
+# A CycloneDX software bill of materials, generated on every tag and attached to
+# the release.
+#
+# This is a Cyber Resilience Act obligation and it costs nothing to do now. It
+# also happens to be short: the component declares no Python requirements of its
+# own, because every dependency shipped into a customer's house is both attack
+# surface and a line somebody has to keep watching.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          python -m pip install --upgrade pip cyclonedx-bom
+          cyclonedx-py environment --output-format json --outfile haim-agent-sbom.json
+
+      - name: Attach the SBOM to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: haim-agent-sbom.json

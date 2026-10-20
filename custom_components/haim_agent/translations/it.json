@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Collega questo impianto a HAIM",
+        "description": "Il tuo installatore ti ha dato un codice di dodici caratteri, in tre gruppi da quattro. Vale quindici minuti e si usa una volta sola.",
+        "data": {
+          "pairing_code": "Codice di abbinamento",
+          "base_url": "Indirizzo del server",
+          "locale": "Lingua",
+          "log_level": "Quanto del registro errori mandare"
+        },
+        "data_description": {
+          "base_url": "L'indirizzo HAIM del tuo installatore. Se ne ha uno suo, non è quello predefinito.",
+          "log_level": "Solo i conteggi, conteggi e categorie, oppure i messaggi per intero. I messaggi passano comunque da un filtro che toglie token, indirizzi email, indirizzi IP e nomi di rete prima di uscire da questa casa."
+        }
+      }
+    },
+    "error": {
+      "pairing_rejected": "Questo codice non va bene. Può essere scaduto, oppure già usato: chiedine uno nuovo al tuo installatore.",
+      "insecure_url": "L'indirizzo deve iniziare con https://. Su questa connessione viaggia la chiave del tuo impianto.",
+      "cannot_connect": "Non riesco a raggiungere quell'indirizzo. Controllalo e riprova.",
+      "certificate_rejected": "Il certificato del pannello non è stato verificato. Probabilmente l'indirizzo è giusto e il certificato no: si risolve sul server. Questo componente non ha nessuna opzione per saltare il controllo."
+    },
+    "abort": {
+      "already_configured": "Questo impianto è già collegato a HAIM."
+    }
+  },
+  "issues": {
+    "token_revoked": {
+      "title": "HAIM non riesce più a parlare con il tuo installatore",
+      "description": "Il tuo installatore ha revocato la chiave con cui questo impianto si faceva riconoscere. Da adesso non parte più niente, e nessun avviso su questo impianto arriva a lui.\n\nDi solito è voluto: un cambio di installatore, o una chiave da sostituire. Se non è così, fatti dare un nuovo codice di abbinamento e riconfigura l'integrazione."
+    },
+    "site_inactive": {
+      "title": "La sorveglianza HAIM è in pausa",
+      "description": "Nel pannello del tuo installatore questo impianto risulta archiviato, oppure il suo abbonamento è scaduto. Finché è così non parte niente.\n\nIl componente riprova da solo ogni sei ore. Se ti aspettavi di essere sorvegliato, vale una telefonata."
+    },
+    "clock_skewed": {
+      "title": "L'orologio di questo sistema è sbagliato",
+      "description": "La data e l'ora di questa macchina sono impossibili: precedenti alla nascita di questo componente, o lontane più di un giorno dall'ora vera. Di solito vuol dire che la macchina non riesce a raggiungere un server dell'ora, e un Raspberry Pi senza orologio a batteria ne ha bisogno a ogni accensione.\n\nFinché non si sistema, HAIM usa l'ora del server del tuo installatore per gli eventi che manda. Ma dall'orologio dipendono anche altre cose di questo sistema - i certificati, i backup, le automazioni a orario - quindi conviene sistemarlo: controlla la rete e le impostazioni dell'ora dell'host."
+    },
+    "what_we_send": {
+      "title": "Cosa HAIM manda fuori da questa casa",
+      "fix_flow": {
+        "abort": {
+          "issue_ignored": "Va bene. Puoi rileggere questo testo quando vuoi nella documentazione di HAIM."
+        },
+        "step": {
+          "confirm": {
+            "title": "Cosa HAIM manda fuori da questa casa",
+            "description": "Questo impianto è sorvegliato dall'installatore che se ne occupa. Perché tu sappia esattamente cosa vuol dire, ecco cosa esce da questa casa e cosa no.\n\n**Cosa esce**\n\nQuante entità, quanti dispositivi, quante automazioni e quante dashboard ci sono. Quante entità in questo momento non rispondono. Che versione di Home Assistant è installata e quali aggiornamenti sono in attesa. Se l'ultimo backup è andato a buon fine. Quanto sono impegnati processore, memoria e disco. Il nome dei *tipi* di integrazione in uso — `zha`, `mqtt` — e il nome degli add-on installati.\n\nI messaggi di errore escono al livello scelto durante la configurazione, che adesso è **{log_level}**. Prima che un messaggio esca, passa da un filtro che toglie chiavi di accesso, indirizzi email, indirizzi IP, nomi di rete e indirizzi web che contengono password.\n\n**Cosa non esce mai**\n\nIl nome dei tuoi dispositivi. Il nome delle tue stanze. Cosa sta facendo o ha fatto un dispositivo. I tuoi consumi. Le immagini delle telecamere. Niente che riguardi le persone che vivono qui.\n\nNessuno può entrare nel tuo impianto da remoto se non lo autorizzi tu, ogni volta, e solo per il tempo che decidi tu.\n\nIl codice che fa tutto questo è pubblico e chiunque può leggerlo: github.com/usehaim/haim-agent"
+          }
+        }
+      }
+    },
+    "access_request": {
+      "title": "{installer} chiede di entrare nel tuo impianto",
+      "fix_flow": {
+        "abort": {
+          "no_longer_valid": "Questa richiesta non è più valida: ha già avuto una risposta, è scaduta, oppure ne è arrivata una più recente. Non è stato inviato niente.",
+          "cannot_answer_now": "Non si può rispondere a questa richiesta mentre qualcuno è collegato al tuo impianto. Non è stato inviato niente. Riprova quando il collegamento è chiuso."
+        },
+        "step": {
+          "decide": {
+            "title": "Ti chiedono di entrare",
+            "description": "**{installer}** chiede di collegarsi a questo impianto.\n\n**Cosa deve fare:** {subject}\n\n**Perché:** {reason}\n\n**Ha chiesto:** {minutes} minuti\n\nNon succede niente finché non rispondi tu. Puoi dargli meno tempo di quello che ha chiesto: di più no, e non possiamo dargliene di più nemmeno noi. Se chiudi senza rispondere, la richiesta scade da sola e non entra nessuno.",
+            "data": {
+              "decision": "La tua risposta",
+              "granted_minutes": "Per quanto tempo gli dai accesso"
+            }
+          }
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "cloud_connection": {
+        "name": "Collegamento"
+      },
+      "access_request": {
+        "name": "Richiesta di accesso in corso"
+      }
+    },
+    "sensor": {
+      "last_heartbeat": {
+        "name": "Ultimo invio"
+      },
+      "agent_status": {
+        "name": "Stato",
+        "state": {
+          "connected": "Collegato",
+          "retrying": "Sta riprovando",
+          "paused": "In pausa",
+          "revoked": "Scollegato"
+        }
+      }
+    }
+  },
+  "selector": {
+    "decision": {
+      "options": {
+        "approve": "Sì, può entrare",
+        "reject": "No"
+      }
+    },
+    "granted_minutes": {
+      "options": {
+        "60": "Un'ora",
+        "120": "Due ore",
+        "240": "Quattro ore",
+        "360": "Sei ore"
+      }
+    }
+  }
+}
