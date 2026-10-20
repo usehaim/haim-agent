@@ -8,6 +8,26 @@ not a style preference.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-10-20
+
+### Fixed
+- An approved request to come in now opens the window. A panel with no relay
+  sends `relay_url` empty, and 1.0.0 refused it as a relay that is not ours:
+  the house said yes, the maintenance account never woke, and the door answered
+  404.
+- The integration no longer offers a server address of its own when you add
+  it: the address is the installer's to give.
+- Devices are listed the way Home Assistant asks from 2026.10 (iterating the
+  registry), without the warning about `device_registry.devices` used as a
+  mapping, which stops working in 2027.9.
+
+### Changed
+- `categories` in the manifest: Computers & network → Monitoring.
+- README: the pairing code is twelve characters, and where to answer a request.
+
+### Security
+- No security fixes in this release.
+
 ## [1.0.0] — 2026-10-20
 
 ### Added

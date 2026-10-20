@@ -207,6 +207,23 @@ async def test_it_wakes_the_account_and_hands_the_token_to_the_cloud() -> None:
     assert api.credentials[0]["ha_user_id"] == (await remote._user.async_find()).id
 
 
+@pytest.mark.parametrize("relay", ["", None])
+async def test_a_panel_with_no_relay_opens_the_window(relay) -> None:
+    """20/10/2026, Padova: the panel sent `"relay_url": ""` and every approved
+    window was refused as "not ours" - the house said yes and nobody got in."""
+    remote, hass, api = manager(base_url="https://app.usehaim.example")
+
+    payload = window(relay_url=relay)
+    payload["request_uuid"] = "8a63d880-d424-4a75-ab31-a3ba154fa491"
+    payload["ticket_hash"] = "0" * 64
+
+    result = await remote.async_open(payload)
+
+    assert result["opened"] is True
+    assert hass.auth.user.is_active is True
+    assert api.credentials
+
+
 async def test_closing_parks_the_account_and_takes_the_tokens_with_it() -> None:
     # Parking IS the revocation: one call that cannot half-succeed, and the
     # browser tab of whoever was inside dies at the same instant.

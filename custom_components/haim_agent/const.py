@@ -29,7 +29,6 @@ CONF_LOG_LEVEL: Final = "log_level"
 # The base URL is asked for and never hardcoded. That single decision is what
 # makes staging, on-premise installs and white-label resellers possible without
 # building a different component for each of them.
-DEFAULT_BASE_URL: Final = "https://haim.test"
 
 API_PREFIX: Final = "/api/v1/agent"
 

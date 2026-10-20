@@ -23,7 +23,6 @@ from .const import (
     CONF_LOG_LEVEL,
     CONF_PAIRING_CODE,
     CONF_SITE_UUID,
-    DEFAULT_BASE_URL,
     DEFAULT_LOG_LEVEL,
     DOMAIN,
     LOG_LEVELS,
@@ -132,7 +131,10 @@ class HaimConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_PAIRING_CODE, default=user_input.get(CONF_PAIRING_CODE, "")
                 ): str,
                 vol.Required(
-                    CONF_BASE_URL, default=user_input.get(CONF_BASE_URL, DEFAULT_BASE_URL)
+                    # No default: the address is the installer's to give. A
+                    # built-in one was the laboratory's, and it was offered to
+                    # every real house.
+                    CONF_BASE_URL, default=user_input.get(CONF_BASE_URL, "")
                 ): str,
                 vol.Optional(
                     CONF_LOCALE, default=user_input.get(CONF_LOCALE, self.hass.config.language)

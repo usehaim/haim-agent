@@ -806,7 +806,7 @@ class StateCollector:
         def devices() -> list[Any]:
             return [
                 name
-                for device in self._device_registry().devices.values()
+                for device in _device_entries(self._device_registry())
                 for name in (getattr(device, "name_by_user", None), getattr(device, "name", None))
             ]
 
@@ -925,6 +925,22 @@ def _is_built_in(domain: str) -> bool:
         return importlib.util.find_spec(f"homeassistant.components.{domain}") is not None
     except Exception:  # noqa: BLE001
         return False
+
+
+def _device_entries(registry: Any) -> list[Any]:
+    """Every device entry, on Home Assistant from 2024.6 to after 2027.9.
+
+    Iterating `registry.devices` yields the entries from 2026.10, where using it
+    as a mapping (`.values()`, `[id]`) is deprecated and breaks in 2027.9. Before
+    that, iterating it yields device ids, and `.values()` is the way.
+    """
+    devices = registry.devices
+    entries = list(devices)
+
+    if entries and isinstance(entries[0], str):
+        return list(devices.values())
+
+    return entries
 
 
 def _is_local(slug: Any) -> bool:

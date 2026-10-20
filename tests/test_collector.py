@@ -424,3 +424,27 @@ async def test_a_dismissed_issue_is_not_a_problem(hass_without_supervisor, monke
     payload = await StateCollector(hass_without_supervisor).async_build_state()
 
     assert payload["repairs"] == []
+
+
+def test_devices_are_listed_before_and_after_home_assistant_2027_9() -> None:
+    """Iterating `devices` yields ids up to 2026.9 and entries from 2026.10, where
+    `.values()` is deprecated and breaks in 2027.9 (warning seen on Padova)."""
+    from types import SimpleNamespace
+
+    from custom_components.haim_agent.collector import _device_entries
+
+    lamp = SimpleNamespace(name="Lampada", name_by_user=None)
+
+    class OldDevices(dict):
+        pass
+
+    class NewDevices:
+        def __iter__(self):
+            return iter([lamp])
+
+        def values(self):
+            raise AssertionError("deprecated in 2026.10, gone in 2027.9")
+
+    assert _device_entries(SimpleNamespace(devices=OldDevices(abc=lamp))) == [lamp]
+    assert _device_entries(SimpleNamespace(devices=NewDevices())) == [lamp]
+    assert _device_entries(SimpleNamespace(devices=OldDevices())) == []

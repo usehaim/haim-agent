@@ -29,9 +29,17 @@ choice is between counts only, counts and categories, or full messages.
 ## Installing
 
 Add this repository to HACS as a custom repository, install **HAIM**, restart
-Home Assistant, then add the integration. You will need the eight character
-pairing code your installer gives you, and their HAIM address — the component
-has no address built into it, which is why it always asks.
+Home Assistant, then add the integration. You will need the twelve character
+pairing code your installer gives you (shown in three groups of four; spaces,
+dashes and lower case are fine), and their HAIM address — the component has no
+address built into it, which is why it always asks.
+
+## Answering a request to come in
+
+When your installer asks to connect, the question appears in **Settings →
+Repairs** (and, if the companion app is installed, as a notification on your
+phone). Open it and choose yes or no. Nothing happens until you answer, and a
+yes lasts only for the time you allowed.
 
 ## Security
 

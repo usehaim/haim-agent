@@ -101,7 +101,10 @@ class RemoteAccessManager:
         # trusted as it arrives (§11.4, point 3): a compromised backend must not
         # be able to point this house's tunnel wherever it likes. The competing
         # product does not do this.
-        relay = data.get("relay_url")
+        # Empty is the same as absent: a panel with no relay configured sends
+        # "" (it did, on 20/10/2026, and every window was refused). Anything
+        # else must be ours.
+        relay = data.get("relay_url") or None
 
         if relay is not None and not self._relay_is_ours(str(relay)):
             raise ValueError("The relay address does not belong to the server this instance is enrolled with.")
