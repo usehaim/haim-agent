@@ -12,6 +12,10 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the SBOM to, for example v1.0.0"
+        required: true
 
 jobs:
   sbom:
@@ -27,10 +31,14 @@ jobs:
 
       - name: Generate CycloneDX SBOM
         run: |
-          python -m pip install --upgrade pip cyclonedx-bom
-          cyclonedx-py environment --output-format json --outfile haim-agent-sbom.json
+          # Pinned: the CLI renamed its options in 7.x (--outfile became
+          # --output-file) and an unpinned tool broke the 1.0.0 release run.
+          python -m pip install --upgrade pip "cyclonedx-bom==7.5.0"
+          cyclonedx-py environment --output-format JSON --output-file haim-agent-sbom.json
 
       - name: Attach the SBOM to the release
         uses: softprops/action-gh-release@v2
         with:
+          # On a tag push, that tag; run by hand, the tag it was given.
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: haim-agent-sbom.json
