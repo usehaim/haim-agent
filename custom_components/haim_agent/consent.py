@@ -103,6 +103,7 @@ class ConsentManager:
         self._pending: dict[str, Any] | None = None
         self._unsubscribe = None
         self._on_change = None
+        self._on_approved = None
         # Asked, never looked up by name here: how the maintenance account is
         # recognised is maintenance.py's business, and it may change.
         self._maintenance_given = maintenance
@@ -124,6 +125,10 @@ class ConsentManager:
     def on_change(self, callback) -> None:
         """Told when the pending request appears or goes away."""
         self._on_change = callback
+
+    def on_approved(self, callback) -> None:
+        """Told when a yes given in this house has reached the panel."""
+        self._on_approved = callback
 
     def _changed(self) -> None:
         if self._on_change is not None:
@@ -390,6 +395,14 @@ class ConsentManager:
             payload["granted_minutes"] = int(granted_minutes)
 
         await self._api.decide_access_request(uuid, payload)
+
+        if approved and self._on_approved is not None:
+            # The installer's «Apri» is seconds away. Never a reason to fail
+            # the answer, which has already been given.
+            try:
+                self._on_approved()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Could not hurry the poll after a yes", exc_info=True)
 
         self._log_answer(approved, via, context)
 

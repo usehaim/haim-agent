@@ -178,7 +178,9 @@ class CommandDispatcher:
             await self._report(
                 command_uuid,
                 "failed",
-                error=f"This version of the HAIM component does not support '{action}'.",
+                # Codes, not sentences (contract 1.6.0): the panel says it in
+                # the installer's language.
+                error="unsupported_action",
             )
 
             return action
@@ -187,7 +189,7 @@ class CommandDispatcher:
             await self._report(
                 command_uuid,
                 "failed",
-                error=f"'{action}' arrived after it expired, and was not carried out.",
+                error="arrived_late",
             )
 
             return action

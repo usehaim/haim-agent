@@ -28,10 +28,32 @@ from homeassistant.helpers.event import async_track_point_in_utc_time, async_tra
 from homeassistant.helpers.storage import Store
 
 from .const import MAX_WINDOW_MINUTES, SESSION_SYNC_SECONDS, STORAGE_KEY_SESSION, STORAGE_VERSION
+from .api import HaimApiError
 from .maintenance import MaintenanceUser, MaintenanceUserError
 from .web import fingerprint, ticket_matches
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class WindowRefused(ValueError):
+    """The house will not open this window, and says why with a fixed code.
+
+    The code is all the panel gets (contract 1.6.0): it turns it into a
+    sentence an installer can act on. The text stays in this house's debug
+    log. A ValueError, so that whatever caught one before still catches it.
+    """
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class CredentialsNotDelivered(WindowRefused, HaimApiError):
+    """The panel did not take the token. Still a HaimApiError to whoever
+    catches those: it is one, with a code on it."""
+
+    def __init__(self) -> None:
+        super().__init__("credentials_not_delivered", "The panel did not take the credential.")
 
 
 class RemoteAccessManager:
@@ -104,7 +126,7 @@ class RemoteAccessManager:
         cloud_deadline = _parse(data.get("expires_at"))
 
         if not isinstance(session_uuid, str) or not session_uuid or cloud_deadline is None:
-            raise ValueError("The session carries no id or no deadline.")
+            raise WindowRefused("window_invalid", "The session carries no id or no deadline.")
 
         # Measured from now, on THIS house's clock, and never longer than six
         # hours whatever the cloud says (D37). The cloud's deadline is only
@@ -118,7 +140,7 @@ class RemoteAccessManager:
             # A window that arrived already over. Refusing is the only honest
             # answer: opening it would put an admin account into the house for a
             # window nobody would be watching.
-            raise ValueError("That window has already closed.")
+            raise WindowRefused("window_already_over", "That window has already closed.")
 
         expires_at = min(arrived + timedelta(minutes=minutes), cloud_deadline)
 
@@ -132,7 +154,10 @@ class RemoteAccessManager:
         relay = data.get("relay_url") or None
 
         if relay is not None and not self._relay_is_ours(str(relay)):
-            raise ValueError("The relay address does not belong to the server this instance is enrolled with.")
+            raise WindowRefused(
+                "relay_not_ours",
+                "The relay address does not belong to the server this instance is enrolled with.",
+            )
 
         if self.is_open:
             # A second window while one is open. Everything the first one had
@@ -180,15 +205,18 @@ class RemoteAccessManager:
             # contract requires so the panel can tell windows apart.
             account = await self._user.async_find()
 
-            await self._api.deliver_credentials(
-                {
-                    "session_uuid": session_uuid,
-                    "ha_user_id": str(getattr(account, "id", "") or ""),
-                    "ha_username": "haim-maintenance",
-                    "token": token,
-                    "expires_at": expires_at.isoformat().replace("+00:00", "Z"),
-                }
-            )
+            try:
+                await self._api.deliver_credentials(
+                    {
+                        "session_uuid": session_uuid,
+                        "ha_user_id": str(getattr(account, "id", "") or ""),
+                        "ha_username": "haim-maintenance",
+                        "token": token,
+                        "expires_at": expires_at.isoformat().replace("+00:00", "Z"),
+                    }
+                )
+            except HaimApiError as error:
+                raise CredentialsNotDelivered from error
         except BaseException:
             # Whatever failed - the account, the disk, the cloud, or the task
             # being cancelled - the account goes back to sleep and every key it

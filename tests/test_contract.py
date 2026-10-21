@@ -62,3 +62,46 @@ def test_the_schema_has_no_place_to_put_household_data(state_schema: dict, forbi
     without_updates = {key: value for key, value in properties.items() if key != "updates"}
 
     assert f'"{forbidden}"' not in json.dumps(without_updates)
+
+
+def _command_schema(contract_dir, action: str) -> dict:
+    return json.loads((contract_dir / "schemas" / "commands" / f"{action}.schema.json").read_text())
+
+
+def _window(relay) -> dict:
+    return {
+        "request_uuid": "8a63d880-d424-4a75-ab31-a3ba154fa491",
+        "session_uuid": "11111111-1111-4111-8111-111111111111",
+        "slug": "abcdefghijklmnopqrstuvwxyz",
+        "granted_minutes": 60,
+        "expires_at": "2026-10-20T13:16:57Z",
+        "ticket_hash": "0" * 64,
+        "relay_url": relay,
+    }
+
+
+@pytest.mark.parametrize("relay", [None, "https://tun.usehaim.com"])
+def test_a_window_the_house_opens_is_one_the_contract_allows(contract_dir, relay) -> None:
+    jsonschema.validate(instance=_window(relay), schema=_command_schema(contract_dir, "connection_approved"))
+
+
+def test_the_contract_forbids_the_empty_relay_of_20_october(contract_dir) -> None:
+    # The house tolerates it since 1.0.1; the panel must never send it again.
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_window(""), schema=_command_schema(contract_dir, "connection_approved"))
+
+
+def test_an_answer_given_elsewhere_carries_no_window(contract_dir) -> None:
+    jsonschema.validate(
+        instance={"request_uuid": "8a63d880-d424-4a75-ab31-a3ba154fa491", "granted_minutes": 60},
+        schema=_command_schema(contract_dir, "connection_approved"),
+    )
+
+
+def test_every_close_reason_in_the_contract_is_one_the_house_reads(contract_dir) -> None:
+    from custom_components.haim_agent.commands import _REASON
+
+    reasons = _command_schema(contract_dir, "close_session")["properties"]["close_reason"]["enum"]
+
+    assert "house_refused" in reasons
+    assert all(_REASON.fullmatch(reason) for reason in reasons)

@@ -38,6 +38,9 @@ GROUP_ADMIN = "system-admin"
 class MaintenanceUserError(Exception):
     """The account could not be prepared. The session must not open."""
 
+    # What the panel is told (contract 1.6.0), whatever the detail was.
+    code = "maintenance_account"
+
 
 class MaintenanceUser:
     """One account, asleep unless somebody was let in."""

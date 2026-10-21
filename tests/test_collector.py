@@ -428,7 +428,7 @@ async def test_a_dismissed_issue_is_not_a_problem(hass_without_supervisor, monke
 
 def test_devices_are_listed_before_and_after_home_assistant_2027_9() -> None:
     """Iterating `devices` yields ids up to 2026.9 and entries from 2026.10, where
-    `.values()` is deprecated and breaks in 2027.9 (warning seen on Padova)."""
+    `.values()` is deprecated and breaks in 2027.9 (warning seen on a real instance)."""
     from types import SimpleNamespace
 
     from custom_components.haim_agent.collector import _device_entries

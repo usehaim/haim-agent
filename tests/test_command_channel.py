@@ -64,10 +64,11 @@ async def test_an_unknown_command_is_refused_and_not_ignored(dispatcher) -> None
 
     # Ignoring it would leave the cloud waiting for an answer that never comes,
     # until the watchdog calls it expired - which looks exactly like a house
-    # with no network. "Too old to do this" is something an installer can act on.
+    # with no network. "Too old to do this" is something an installer can act on,
+    # and since contract 1.6.0 it is a code the panel puts into words.
     assert len(channel.reports) == 1
     assert channel.reports[0][1] == "failed"
-    assert "open_the_pod_bay_doors" in channel.reports[0][2]
+    assert channel.reports[0][2] == "unsupported_action"
 
 
 async def test_a_handler_that_raises_is_reported_as_failed(dispatcher) -> None:

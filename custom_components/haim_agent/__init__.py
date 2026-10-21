@@ -98,6 +98,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HaimConfigEntry) -> bool
     coordinator.attach_consent(consent)
     coordinator.attach_remote(remote)
 
+    # After a yes given here, ask for the window every few seconds instead of
+    # every thirty: the installer is about to press «Apri» (contract 1.6.0).
+    consent.on_approved(coordinator.hurry)
+
     entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

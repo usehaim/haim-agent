@@ -8,6 +8,24 @@ not a style preference.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-10-21
+
+### Changed
+- Right after a yes given in this house, the component asks the panel for the
+  window every 5 seconds instead of every 30, for up to ten minutes, and stops
+  as soon as the window opens (contract 1.6.0). The installer presses «Apri»
+  seconds after the yes; waiting for the next thirty-second round was the
+  whole delay of getting in.
+- A window the house will not open now comes back to the panel as a fixed code
+  (`window_invalid`, `window_already_over`, `relay_not_ours`,
+  `maintenance_account`, `credentials_not_delivered`), and a late or unknown
+  command as `arrived_late` or `unsupported_action`. The panel says them in the
+  installer's language; before, it got `command_failed:ValueError`. No text of
+  an exception leaves the house, as before.
+
+### Security
+- No security fixes in this release.
+
 ## [1.1.0] — 2026-10-20
 
 ### Added

@@ -17,6 +17,7 @@ of them the same is how an instance ends up either silent or hammering:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -35,6 +36,8 @@ from .const import (
     AGENT_KEY_PATTERN,
     DEFAULT_EVENT_BATCH_MAX,
     DEFAULT_POLL_INTERVAL,
+    HURRY_FOR_SECONDS,
+    HURRY_POLL_SECONDS,
     DEFAULT_LOG_LEVEL,
     DEFAULT_STATE_INTERVAL,
     DOMAIN,
@@ -92,6 +95,9 @@ class HaimCoordinator:
         self._last_error: str | None = None
         self._cancel_timer: Any = None
         self._cancel_poll: Any = None
+        self._cancel_hurry: Any = None
+        self._hurry_until = 0.0
+        self._poll_lock = asyncio.Lock()
         self._dispatcher: Any = None
         self._listeners: list[Any] = []
 
@@ -185,6 +191,50 @@ class HaimCoordinator:
             self._cancel_poll()
             self._cancel_poll = None
 
+        self._stop_hurrying()
+
+    # ------------------------------------------------------------------ hurry
+
+    @callback
+    def hurry(self) -> None:
+        """A yes was just given here: ask for the window every few seconds.
+
+        For ten minutes at most, and not a round longer than it takes the
+        window to open. Ten minutes of five-second polls is a hundred and
+        twenty requests, once per yes - and the alternative was an installer
+        on the phone with the household, staring at a page for thirty seconds.
+        """
+        self._hurry_until = time.monotonic() + HURRY_FOR_SECONDS
+
+        if self._cancel_hurry is None:
+            self._cancel_hurry = async_track_time_interval(
+                self._hass,
+                self._async_hurry_tick,
+                timedelta(seconds=HURRY_POLL_SECONDS),
+            )
+
+    @property
+    def hurrying(self) -> bool:
+        return self._cancel_hurry is not None
+
+    def _stop_hurrying(self) -> None:
+        if self._cancel_hurry is not None:
+            self._cancel_hurry()
+            self._cancel_hurry = None
+
+    async def _async_hurry_tick(self, _now: Any) -> None:
+        remote = self.remote
+
+        if time.monotonic() >= self._hurry_until or (remote is not None and remote.is_open):
+            self._stop_hurrying()
+
+            return
+
+        await self.async_poll_once()
+
+        if remote is not None and remote.is_open:
+            self._stop_hurrying()
+
     def _schedule_poll(self) -> None:
         if self._cancel_poll is not None:
             self._cancel_poll()
@@ -272,8 +322,15 @@ class HaimCoordinator:
         if self._paused or self._dispatcher is None:
             return None
 
+        # The hurried rounds and the ordinary ones run on two timers. One trip
+        # at a time: a second one started while the first is out asks for the
+        # same thing and gets in the way of nobody but itself.
+        if self._poll_lock.locked():
+            return None
+
         try:
-            return await self._dispatcher.async_poll_once()
+            async with self._poll_lock:
+                return await self._dispatcher.async_poll_once()
         except TokenRevoked:
             self._paused = True
             self._last_error = "token_revoked"

@@ -213,7 +213,7 @@ async def test_it_wakes_the_account_and_hands_the_token_to_the_cloud() -> None:
 
 @pytest.mark.parametrize("relay", ["", None])
 async def test_a_panel_with_no_relay_opens_the_window(relay) -> None:
-    """20/10/2026, Padova: the panel sent `"relay_url": ""` and every approved
+    """20/10/2026, on a real instance: the panel sent `"relay_url": ""` and every approved
     window was refused as "not ours" - the house said yes and nobody got in."""
     remote, hass, api = manager(base_url="https://app.usehaim.example")
 
@@ -1117,3 +1117,47 @@ async def test_entities_hear_about_every_change() -> None:
 
     assert heard[0] is True and heard[-1] is False
     assert remote.expires_at is None
+
+
+@pytest.mark.parametrize(
+    ("payload", "code"),
+    [
+        ({"session_uuid": "", "expires_at": None}, "window_invalid"),
+        ({"expires_at": "2020-01-01T00:00:00+00:00"}, "window_already_over"),
+        ({"relay_url": "https://tun.somebody-else.example"}, "relay_not_ours"),
+    ],
+)
+async def test_a_window_it_will_not_open_comes_back_as_a_code_the_panel_can_say(payload, code) -> None:
+    """Contract 1.6.0. The panel used to get `command_failed:ValueError` and
+    show it to the installer as it was."""
+    from custom_components.haim_agent.command_channel import _error_code
+
+    remote, _, _ = manager()
+
+    with pytest.raises(ValueError) as refused:
+        await remote.async_open(window(**payload))
+
+    assert _error_code(refused.value) == code
+
+
+async def test_an_account_that_cannot_be_prepared_says_so_with_a_code() -> None:
+    from custom_components.haim_agent.command_channel import _error_code
+    from custom_components.haim_agent.maintenance import MaintenanceUserError
+
+    assert _error_code(MaintenanceUserError("no admin group")) == "maintenance_account"
+
+
+async def test_a_cloud_that_does_not_take_the_token_says_so_with_a_code(_fake_storage) -> None:
+    from custom_components.haim_agent.command_channel import _error_code
+
+    remote, _, api = manager()
+
+    async def refuse(_payload):
+        raise HaimApiError("503")
+
+    api.deliver_credentials = refuse
+
+    with pytest.raises(HaimApiError) as refused:
+        await remote.async_open(window())
+
+    assert _error_code(refused.value) == "credentials_not_delivered"

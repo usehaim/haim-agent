@@ -1,0 +1,41 @@
+name: Release tag
+
+# HACS offers a version only when the tag reads exactly v<major>.<minor>.<patch>
+# and the manifest says the same number. On 20/10/2026 the tag was "v.1.1.0":
+# HACS offered nobody anything, and an hour went into finding out why. GitHub
+# cannot refuse a tag name by itself (a tag ruleset can, set in the repository
+# settings); this check turns a wrong one red within a minute, with the reason.
+on:
+  push:
+    tags: ["*"]
+  release:
+    types: [published, edited]
+
+jobs:
+  tag:
+    name: Tag matches the manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check
+        env:
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        run: |
+          manifest=$(python3 -c 'import json; print(json.load(open("custom_components/haim_agent/manifest.json"))["version"])')
+
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The tag is \"$TAG\". HACS reads only v<major>.<minor>.<patch>, e.g. v$manifest. Delete this tag and the release, and publish v$manifest."
+            exit 1
+          fi
+
+          if [ "$TAG" != "v$manifest" ]; then
+            echo "::error::The tag is $TAG but manifest.json says $manifest. They must be the same number."
+            exit 1
+          fi
+
+          if ! grep -q "^## \[$manifest\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $manifest."
+            exit 1
+          fi
+
+          echo "$TAG matches manifest.json and CHANGELOG.md."

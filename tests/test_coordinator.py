@@ -6,6 +6,7 @@ same is how an instance ends up either silent or hammering.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -366,3 +367,74 @@ def test_a_family_that_was_not_asked_sends_counts_only() -> None:
     from custom_components.haim_agent.const import DEFAULT_LOG_LEVEL
 
     assert DEFAULT_LOG_LEVEL == "counts"
+
+
+async def test_after_a_yes_it_asks_every_five_seconds_until_the_window_opens(coordinator, monkeypatch) -> None:
+    import custom_components.haim_agent.coordinator as module
+
+    timers: list[tuple[Any, Any]] = []
+    cancelled: list[int] = []
+
+    def track(hass, action, delta):
+        timers.append((action, delta))
+
+        return lambda: cancelled.append(1)
+
+    monkeypatch.setattr(module, "async_track_time_interval", track)
+
+    coordinator = coordinator.coordinator
+
+    polls: list[int] = []
+
+    class Dispatcher:
+        async def async_poll_once(self):
+            polls.append(1)
+
+    remote = SimpleNamespace(is_open=False, async_add_listener=lambda listener: None)
+    coordinator.attach_commands(Dispatcher())
+    coordinator.attach_remote(remote)
+
+    coordinator.hurry()
+    coordinator.hurry()  # a second yes extends, it does not stack timers
+
+    assert len(timers) == 1
+    action, delta = timers[0]
+    assert delta == timedelta(seconds=5)
+
+    await action(None)
+    assert polls == [1]
+    assert coordinator.hurrying
+
+    # The window opened: the very next round stops it.
+    remote.is_open = True
+    await action(None)
+
+    assert polls == [1]
+    assert not coordinator.hurrying
+    assert cancelled == [1]
+
+
+async def test_the_hurry_gives_up_after_ten_minutes(coordinator, monkeypatch) -> None:
+    import custom_components.haim_agent.coordinator as module
+
+    timers: list[Any] = []
+    monkeypatch.setattr(module, "async_track_time_interval", lambda hass, action, delta: timers.append(action) or (lambda: None))
+
+    now = [1000.0]
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+
+    coordinator = coordinator.coordinator
+    polls: list[int] = []
+
+    class Dispatcher:
+        async def async_poll_once(self):
+            polls.append(1)
+
+    coordinator.attach_commands(Dispatcher())
+    coordinator.hurry()
+
+    now[0] += 601
+    await timers[0](None)
+
+    assert polls == []
+    assert not coordinator.hurrying

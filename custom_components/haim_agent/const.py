@@ -37,6 +37,14 @@ API_PREFIX: Final = "/api/v1/agent"
 # without shipping a release to three hundred houses and waiting for HACS.
 DEFAULT_STATE_INTERVAL: Final = 300
 DEFAULT_POLL_INTERVAL: Final = 30
+
+# Right after a yes given in this house, the installer presses «Apri» within
+# seconds: they are on the phone with the household. Waiting for the next
+# thirty-second round was the whole delay of getting in (20/10/2026). So for a
+# while the house asks every five seconds, and stops as soon as the window
+# opens. Contract 1.6.0; the panel allows twenty a minute.
+HURRY_POLL_SECONDS: Final = 5
+HURRY_FOR_SECONDS: Final = 600
 DEFAULT_EVENT_BATCH_MAX: Final = 50
 
 # How much of a log message leaves the house. The customer chooses.

@@ -824,3 +824,37 @@ async def test_one_phone_that_cannot_be_reached_does_not_keep_it_on_the_others()
     assert [
         service for domain, service, payload in services.calls if payload.get("message") == "clear_notification"
     ] == ["mobile_app_acceso"]
+
+
+async def test_a_yes_hurries_the_poll_and_a_no_does_not(manager) -> None:
+    """20/10/2026: the installer pressed «Apri» seconds after the yes, and the
+    house only came to collect the window on its next thirty-second round."""
+    consent, _, _ = manager
+    hurried: list[int] = []
+
+    consent.on_approved(lambda: hurried.append(1))
+
+    await consent.async_ask(REQUEST)
+    await consent.async_answer(approved=False, via="repairs")
+
+    assert hurried == []
+
+    await consent.async_ask(REQUEST)
+    await consent.async_answer(approved=True, via="repairs")
+
+    assert hurried == [1]
+
+
+async def test_a_hurry_that_fails_does_not_undo_the_answer(manager) -> None:
+    consent, _, api = manager
+
+    def broken() -> None:
+        raise RuntimeError("no timer")
+
+    consent.on_approved(broken)
+
+    await consent.async_ask(REQUEST)
+    await consent.async_answer(approved=True, via="repairs")
+
+    assert api.decisions[0][1]["decision"] == "approved"
+    assert not consent.has_pending
